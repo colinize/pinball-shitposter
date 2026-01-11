@@ -39,9 +39,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ shitpost });
   } catch (error) {
     console.error("Error generating shitpost:", error);
-    return NextResponse.json(
-      { error: "Failed to generate shitpost. Check your API key." },
-      { status: 500 }
-    );
+
+    // Extract actual error message from Anthropic API
+    let message = "Failed to generate shitpost";
+    if (error instanceof Error) {
+      if (error.message.includes("credit balance")) {
+        message = "Anthropic account has no credits. Add credits at console.anthropic.com/settings/billing";
+      } else if (error.message.includes("401") || error.message.includes("invalid")) {
+        message = "Invalid API key. Check your ANTHROPIC_API_KEY.";
+      } else {
+        message = error.message;
+      }
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
