@@ -5,13 +5,14 @@ import ImageUploader from "@/components/ImageUploader";
 import UrlInput from "@/components/UrlInput";
 import TextInput from "@/components/TextInput";
 import ShitpostOutput from "@/components/ShitpostOutput";
-import UnhingedSlider from "@/components/UnhingedSlider";
+import StyleSelector from "@/components/StyleSelector";
+import { ShitpostStyle } from "@/lib/prompts";
 
 type InputTab = "image" | "url" | "text";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<InputTab>("image");
-  const [unhingedLevel, setUnhingedLevel] = useState(7);
+  const [style, setStyle] = useState<ShitpostStyle>("reply-guy");
   const [shitpost, setShitpost] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export default function Home() {
           setIsLoading(false);
           return;
         }
-        content = ""; // Image is sent separately
+        content = "";
       } else if (activeTab === "url") {
         if (!urlContent) {
           setError("Please fetch a URL first");
@@ -61,7 +62,7 @@ export default function Home() {
         body: JSON.stringify({
           content,
           inputType,
-          unhingedLevel,
+          style,
           imageData: activeTab === "image" ? imageData : undefined,
           imageMediaType: activeTab === "image" ? imageMediaType : undefined,
         }),
@@ -101,13 +102,13 @@ export default function Home() {
             Pinball Shitposter
           </h1>
           <p className="text-zinc-400 text-lg">
-            Generate the perfect chaotic reply for any pinball forum post
+            Generate the perfect reply for any pinball forum post
           </p>
         </div>
 
-        {/* Unhinged Level Slider */}
+        {/* Style Selector */}
         <div className="mb-8 p-4 bg-zinc-800/50 rounded-lg">
-          <UnhingedSlider value={unhingedLevel} onChange={setUnhingedLevel} />
+          <StyleSelector value={style} onChange={setStyle} />
         </div>
 
         {/* Input Tabs */}

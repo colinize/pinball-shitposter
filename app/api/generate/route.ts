@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateShitpost } from "@/lib/claude";
-import { getShitpostSystemPrompt, getShitpostUserPrompt } from "@/lib/prompts";
+import { getShitpostSystemPrompt, getShitpostUserPrompt, ShitpostStyle } from "@/lib/prompts";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,13 +8,13 @@ export async function POST(request: NextRequest) {
     const {
       content,
       inputType,
-      unhingedLevel,
+      style,
       imageData,
       imageMediaType,
     }: {
       content: string;
       inputType: "image" | "url" | "text";
-      unhingedLevel: number;
+      style: ShitpostStyle;
       imageData?: string;
       imageMediaType?: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
     } = body;
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const systemPrompt = getShitpostSystemPrompt(unhingedLevel);
+    const systemPrompt = getShitpostSystemPrompt(style);
     const userPrompt = getShitpostUserPrompt(content || "", inputType);
 
     const shitpost = await generateShitpost({
@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error generating shitpost:", error);
 
-    // Extract actual error message from Anthropic API
     let message = "Failed to generate shitpost";
     if (error instanceof Error) {
       if (error.message.includes("credit balance")) {
