@@ -1,65 +1,207 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+import ImageUploader from "@/components/ImageUploader";
+import UrlInput from "@/components/UrlInput";
+import TextInput from "@/components/TextInput";
+import ShitpostOutput from "@/components/ShitpostOutput";
+import UnhingedSlider from "@/components/UnhingedSlider";
+
+type InputTab = "image" | "url" | "text";
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<InputTab>("image");
+  const [unhingedLevel, setUnhingedLevel] = useState(7);
+  const [shitpost, setShitpost] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Content state
+  const [imageData, setImageData] = useState<string | null>(null);
+  const [imageMediaType, setImageMediaType] = useState<
+    "image/jpeg" | "image/png" | "image/gif" | "image/webp" | null
+  >(null);
+  const [urlContent, setUrlContent] = useState<string>("");
+  const [textContent, setTextContent] = useState<string>("");
+
+  const handleGenerate = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let content = "";
+      let inputType: InputTab = activeTab;
+
+      if (activeTab === "image") {
+        if (!imageData) {
+          setError("Please upload an image first");
+          setIsLoading(false);
+          return;
+        }
+        content = ""; // Image is sent separately
+      } else if (activeTab === "url") {
+        if (!urlContent) {
+          setError("Please fetch a URL first");
+          setIsLoading(false);
+          return;
+        }
+        content = urlContent;
+      } else {
+        if (!textContent.trim()) {
+          setError("Please enter some text first");
+          setIsLoading(false);
+          return;
+        }
+        content = textContent;
+      }
+
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content,
+          inputType,
+          unhingedLevel,
+          imageData: activeTab === "image" ? imageData : undefined,
+          imageMediaType: activeTab === "image" ? imageMediaType : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate shitpost");
+      }
+
+      setShitpost(data.shitpost);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to generate shitpost"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegenerate = () => {
+    handleGenerate();
+  };
+
+  const hasContent =
+    (activeTab === "image" && imageData) ||
+    (activeTab === "url" && urlContent) ||
+    (activeTab === "text" && textContent.trim());
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-zinc-900 text-white">
+      <div className="max-w-3xl mx-auto px-4 py-12">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+            Pinball Shitposter
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-zinc-400 text-lg">
+            Generate the perfect chaotic reply for any pinball forum post
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Unhinged Level Slider */}
+        <div className="mb-8 p-4 bg-zinc-800/50 rounded-lg">
+          <UnhingedSlider value={unhingedLevel} onChange={setUnhingedLevel} />
         </div>
-      </main>
+
+        {/* Input Tabs */}
+        <div className="mb-6">
+          <div className="flex border-b border-zinc-700">
+            <button
+              onClick={() => setActiveTab("image")}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === "image"
+                  ? "text-purple-400 border-b-2 border-purple-400"
+                  : "text-zinc-400 hover:text-zinc-300"
+              }`}
+            >
+              Screenshot
+            </button>
+            <button
+              onClick={() => setActiveTab("url")}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === "url"
+                  ? "text-purple-400 border-b-2 border-purple-400"
+                  : "text-zinc-400 hover:text-zinc-300"
+              }`}
+            >
+              URL
+            </button>
+            <button
+              onClick={() => setActiveTab("text")}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === "text"
+                  ? "text-purple-400 border-b-2 border-purple-400"
+                  : "text-zinc-400 hover:text-zinc-300"
+              }`}
+            >
+              Text
+            </button>
+          </div>
+        </div>
+
+        {/* Input Content */}
+        <div className="mb-8">
+          {activeTab === "image" && (
+            <ImageUploader
+              onImageSelect={(data, mediaType) => {
+                setImageData(data);
+                setImageMediaType(mediaType);
+              }}
+            />
+          )}
+          {activeTab === "url" && (
+            <UrlInput onContentFetched={setUrlContent} />
+          )}
+          {activeTab === "text" && <TextInput onTextChange={setTextContent} />}
+        </div>
+
+        {/* Generate Button */}
+        <div className="mb-8">
+          <button
+            onClick={handleGenerate}
+            disabled={isLoading || !hasContent}
+            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed text-white font-bold text-lg rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+          >
+            {isLoading ? "Generating..." : "Generate Shitpost"}
+          </button>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="mb-8 p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-200">
+            {error}
+          </div>
+        )}
+
+        {/* Output */}
+        <div className="mb-8">
+          <ShitpostOutput shitpost={shitpost} isLoading={isLoading} />
+        </div>
+
+        {/* Regenerate Button */}
+        {shitpost && !isLoading && (
+          <div className="text-center">
+            <button
+              onClick={handleRegenerate}
+              className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 text-white font-medium rounded-lg transition-colors"
+            >
+              Regenerate
+            </button>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="mt-16 text-center text-zinc-500 text-sm">
+          <p>For entertainment purposes only. Please shitpost responsibly.</p>
+        </div>
+      </div>
     </div>
   );
 }
