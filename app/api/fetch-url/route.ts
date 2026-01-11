@@ -22,9 +22,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(parsed);
   } catch (error) {
     console.error("Error fetching URL:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch URL content" },
-      { status: 500 }
-    );
+    const message =
+      error instanceof Error ? error.message : "Failed to fetch URL content";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

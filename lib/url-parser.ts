@@ -8,41 +8,102 @@ export interface ParsedContent {
 }
 
 export async function fetchAndParseUrl(url: string): Promise<ParsedContent> {
-  const response = await fetch(url, {
+  // Reddit has a JSON API - use that instead of scraping
+  if (url.includes("reddit.com") || url.includes("redd.it")) {
+    return fetchRedditJson(url);
+  }
+
+  // For other sites, try scraping with better headers
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Cache-Control": "no-cache",
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      throw new Error(
+        `Site returned ${response.status}. The site may be blocking automated requests.`
+      );
+    }
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    if (url.includes("pinside.com")) {
+      return parsePinside($);
+    } else if (url.includes("facebook.com")) {
+      return parseFacebook($);
+    } else {
+      return parseGeneric($);
+    }
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Request timed out. The site may be slow or blocking requests.");
+    }
+    throw error;
+  }
+}
+
+async function fetchRedditJson(url: string): Promise<ParsedContent> {
+  // Convert Reddit URL to JSON endpoint
+  let jsonUrl = url.replace(/\/$/, ""); // Remove trailing slash
+
+  // Handle different Reddit URL formats
+  if (jsonUrl.includes("redd.it/")) {
+    // Short URL - need to follow redirect first
+    const response = await fetch(jsonUrl, { redirect: "follow" });
+    jsonUrl = response.url.replace(/\/$/, "");
+  }
+
+  // Remove query params and add .json
+  jsonUrl = jsonUrl.split("?")[0] + ".json";
+
+  const response = await fetch(jsonUrl, {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      "User-Agent": "PinballShitposter/1.0",
+      Accept: "application/json",
     },
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch URL: ${response.status}`);
+    throw new Error(
+      `Reddit returned ${response.status}. The post may be private or deleted.`
+    );
   }
 
-  const html = await response.text();
-  const $ = cheerio.load(html);
+  const data = await response.json();
 
-  // Detect platform and parse accordingly
-  if (url.includes("pinside.com")) {
-    return parsePinside($, url);
-  } else if (url.includes("reddit.com") || url.includes("redd.it")) {
-    return parseReddit($, url);
-  } else if (url.includes("facebook.com")) {
-    return parseFacebook($, url);
-  } else {
-    return parseGeneric($, url);
+  // Reddit returns an array - first element is the post, second is comments
+  const postData = data[0]?.data?.children?.[0]?.data;
+
+  if (!postData) {
+    throw new Error("Could not parse Reddit post data");
   }
+
+  return {
+    title: postData.title || "Reddit Post",
+    content: postData.selftext || postData.title || "",
+    author: postData.author || undefined,
+    platform: "reddit",
+  };
 }
 
-function parsePinside(
-  $: cheerio.CheerioAPI,
-  _url: string
-): ParsedContent {
-  // Pinside forum post structure
+function parsePinside($: cheerio.CheerioAPI): ParsedContent {
   const title = $("h1.topic-title").text().trim() || $("title").text().trim();
   const author = $(".post-author-name").first().text().trim();
-
-  // Get the main post content
   const postContent = $(".post-message").first().text().trim();
 
   return {
@@ -53,39 +114,7 @@ function parsePinside(
   };
 }
 
-function parseReddit(
-  $: cheerio.CheerioAPI,
-  _url: string
-): ParsedContent {
-  // Reddit post structure (works with old reddit better)
-  const title =
-    $('h1[slot="title"]').text().trim() ||
-    $(".Post h1").text().trim() ||
-    $("title").text().trim();
-
-  const author =
-    $('a[data-testid="post_author_link"]').text().trim() ||
-    $(".author").first().text().trim();
-
-  // Get post content
-  const postContent =
-    $('[data-click-id="text"]').text().trim() ||
-    $(".Post .RichTextJSON-root").text().trim() ||
-    $(".usertext-body").first().text().trim();
-
-  return {
-    title,
-    content: postContent || $("body").text().slice(0, 2000).trim(),
-    author: author || undefined,
-    platform: "reddit",
-  };
-}
-
-function parseFacebook(
-  $: cheerio.CheerioAPI,
-  _url: string
-): ParsedContent {
-  // Facebook is tricky due to dynamic content, but we try
+function parseFacebook($: cheerio.CheerioAPI): ParsedContent {
   const title = $('meta[property="og:title"]').attr("content") || "";
   const content =
     $('meta[property="og:description"]').attr("content") ||
@@ -98,16 +127,10 @@ function parseFacebook(
   };
 }
 
-function parseGeneric(
-  $: cheerio.CheerioAPI,
-  _url: string
-): ParsedContent {
+function parseGeneric($: cheerio.CheerioAPI): ParsedContent {
   const title =
-    $("h1").first().text().trim() ||
-    $("title").text().trim() ||
-    "Unknown Post";
+    $("h1").first().text().trim() || $("title").text().trim() || "Unknown Post";
 
-  // Try to get main content
   const content =
     $("article").text().trim() ||
     $("main").text().trim() ||
